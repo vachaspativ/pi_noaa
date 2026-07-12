@@ -12,9 +12,9 @@
 # ─── Observer Location ───────────────────────────────────────
 location:
   name: "Home Station"
-  latitude: 41.8827         # Decimal degrees, North positive
-  longitude: -87.6233       # Decimal degrees, East positive
-  altitude_m: 182           # Meters above sea level
+  latitude: 33.2362         # Decimal degrees, North positive
+  longitude: -96.8011       # Decimal degrees, East positive
+  altitude_m: 200           # Meters above sea level
 
 # ─── Operating Mode ──────────────────────────────────────────
 mode:
@@ -129,7 +129,7 @@ noaa_weather_radio:
   same_decoder:
     enabled: true
     fips_filter:
-      - "017031"
+      - "048085"
     accept_all_areas: false
   record_alert_audio: true
   alert_audio_dir: "data/recordings/wx_alerts"
@@ -138,8 +138,8 @@ noaa_weather_radio:
 # ─── NWS API Alerts (Online Only) ───────────────────────────
 nws_api:
   base_url: "https://api.weather.gov"
-  alert_zone: "ILC031"
-  alert_state: "IL"
+  alert_zone: "TXC085"
+  alert_state: "TX"
   poll_interval_seconds: 60
   request_timeout_seconds: 15
   user_agent: "pi_noaa/2.0 (pi_noaa@example.com)"
