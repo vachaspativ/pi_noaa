@@ -24,9 +24,18 @@ if ! command -v satdump &> /dev/null; then
     # Dependencies required by SatDump
     sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev libnng-dev libcurl4-openssl-dev libsqlite3-dev
     
-    rm -rf /tmp/satdump
-    git clone https://github.com/SatDump/SatDump.git /tmp/satdump
-    cd /tmp/satdump && mkdir build && cd build
+    BUILD_DIR="$HOME/satdump"
+    if [ -d "$BUILD_DIR" ]; then
+        echo "--- Updating SatDump source ---"
+        cd "$BUILD_DIR"
+        git pull
+    else
+        echo "--- Cloning SatDump ---"
+        git clone https://github.com/SatDump/SatDump.git "$BUILD_DIR"
+        cd "$BUILD_DIR"
+    fi
+    
+    mkdir -p build && cd build
     
     # Dynamically locate libogg.so and libnng.so to bypass CMake multiarch resolution bugs
     OGG_PATH=$(find /usr/lib -name "libogg.so" 2>/dev/null | head -n 1)
@@ -45,7 +54,6 @@ if ! command -v satdump &> /dev/null; then
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_GUI=OFF $CMAKE_FLAGS .. && make -j2
     sudo make install
     cd -
-    rm -rf /tmp/satdump
 fi
 
 # Python virtual environment

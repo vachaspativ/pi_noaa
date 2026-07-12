@@ -86,3 +86,20 @@ The app time-shares the SDR. Between satellite passes, it tunes to your local NW
 - **SDR not detected**: Run `scripts/setup_rtlsdr.sh` and reboot.
 - **No satellite passes shown**: Ensure your system time is correct and you have an initial internet connection to download TLEs.
 - **Map tiles not appearing offline**: You need to download an `.mbtiles` file and run `tileserver-gl`. (Detailed guide coming soon).
+
+### SatDump Compilation & Space Management
+During the dependency installation, SatDump is built from source and the source files are retained in `~/satdump`.
+
+- **Why is this folder retained?**
+  Leaving the repository in `~/satdump` allows you to compile updates in under **10 seconds** rather than rebuilding from scratch for 10+ minutes. To update SatDump in the future, simply run:
+  ```bash
+  cd ~/satdump/build && git pull && make -j2 && sudo make install
+  ```
+- **How much space does it take?**
+  The directory takes up roughly **600MB to 1GB** of storage.
+- **Can I delete it?**
+  Yes. If you are running low on SD card space, you can safely delete this folder:
+  ```bash
+  rm -rf ~/satdump
+  ```
+  Deleting it will not affect the operation of `pi_noaa` because the compiled binary has already been installed system-wide in `/usr/local/bin/satdump`. You will only need to rebuild it if you decide to update SatDump later.
