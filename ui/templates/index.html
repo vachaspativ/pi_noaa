@@ -46,6 +46,22 @@
                 </div>
             </div>
 
+            <div id="images-panel" class="panel">
+                <h2>Latest Satellite Image</h2>
+                <div id="image-viewer-container" style="text-align: center; position: relative;">
+                    <img id="satellite-image-display" src="" alt="No image available" style="max-width: 100%; max-height: 300px; border-radius: 4px; display: none;">
+                    <div id="image-placeholder" style="padding: 40px 0; color: var(--text-muted);">No images captured yet.</div>
+                </div>
+                <div id="layer-controls" style="margin-top: 10px; display: none; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                    <!-- Toggle buttons populated by JS -->
+                </div>
+                <div style="margin-top: 10px; font-size: 0.9em; color: var(--text-muted); text-align: center;">
+                    <select id="pass-selector" style="width: 100%; background: var(--bg-dark); color: var(--text-main); border: 1px solid #444; border-radius: 4px; padding: 4px;">
+                        <option value="">No passes available</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="alerts-panel" class="panel">
                 <h2>Active Alerts</h2>
                 <div class="table-container">
@@ -72,6 +88,7 @@
     <script src="/static/js/alert_banner.js"></script>
     <script src="/static/js/offline_banner.js"></script>
     <script src="/static/js/pass_clock.js"></script>
+    <script src="/static/js/satellite_images.js"></script>
     <script src="/static/js/dashboard.js"></script>
 </body>
 </html>

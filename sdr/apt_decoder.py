@@ -21,8 +21,8 @@ def decode_apt(wav_path: Path) -> Path | None:
         Path to the decoded image file, or None on failure.
     """
     cfg = get_config()
-    apt_cfg = cfg.apt_decoder
-    output_dir = Path(apt_cfg["output_dir"])
+    sat_cfg = cfg.satdump_decoder
+    output_dir = Path(sat_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
     wav_path = Path(wav_path)
@@ -30,67 +30,87 @@ def decode_apt(wav_path: Path) -> Path | None:
         logger.error(f"WAV file not found: {wav_path}")
         return None
 
-    # Output filename: same stem as WAV, with configured image format
-    img_format = apt_cfg.get("image_format", "png")
-    output_name = f"{wav_path.stem}.{img_format}"
-    output_path = output_dir / output_name
-
-    backend = apt_cfg.get("backend", "aptdec")
-
-    if backend == "aptdec":
-        return _decode_with_aptdec(wav_path, output_path, apt_cfg)
+    backend = sat_cfg.get("backend", "satdump")
+    if backend == "satdump":
+        return _decode_with_satdump(wav_path, output_dir, sat_cfg)
     else:
-        logger.error(f"Unsupported APT decoder backend: {backend}")
+        logger.error(f"Unsupported decoder backend: {backend}")
         return None
 
 
-def _decode_with_aptdec(
-    wav_path: Path, output_path: Path, apt_cfg: dict
-) -> Path | None:
-    """Run aptdec to decode the WAV file."""
-    aptdec_path = apt_cfg.get("aptdec_path", "aptdec")
+def _decode_with_satdump(
+    wav_path: Path, final_output_dir: Path, sat_cfg: dict
+) -> dict[str, Path] | None:
+    """Run SatDump to decode the WAV file and extract requested products."""
+    import shutil
+    import tempfile
 
-    cmd = [aptdec_path]
-
-    # Add enhancement options
-    for enh in apt_cfg.get("enhancements", []):
-        cmd.extend(["-e", enh])
-
-    # Output path
-    cmd.extend(["-o", str(output_path)])
-
-    # Input WAV file
-    cmd.append(str(wav_path))
-
-    logger.info(f"Decoding APT: {wav_path.name} → {output_path.name}")
-    logger.debug(f"aptdec command: {' '.join(cmd)}")
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        if result.stderr:
-            logger.debug(f"aptdec stderr: {result.stderr}")
-
-        if result.returncode == 0 and output_path.exists():
-            logger.info(f"APT decode success: {output_path}")
-            return output_path
-        else:
+    satdump_path = sat_cfg.get("satdump_path", "satdump")
+    
+    # Extract satellite name from wav filename (e.g., NOAA_15_20260712.wav -> NOAA_15)
+    # This is a bit brittle, but we assume the stem starts with the satellite name
+    stem = wav_path.stem
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        
+        # Satdump command: satdump noaa_apt wav input.wav output_dir
+        cmd = [satdump_path, "noaa_apt", "wav", str(wav_path), str(tmp_path)]
+        
+        logger.info(f"Decoding APT with SatDump: {wav_path.name}")
+        logger.debug(f"satdump command: {' '.join(cmd)}")
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300, # Satdump might take a bit longer
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"satdump failed (code {result.returncode}): {result.stderr}")
+                return None
+                
+            # Now extract the keep_products
+            keep = sat_cfg.get("keep_products", ["msa", "mcir"])
+            ext = sat_cfg.get("image_format", "png")
+            
+            output_products = {}
+            found_any = False
+            
+            # SatDump creates files like `[product_name].[ext]` or sometimes includes sat name.
+            # Usually it generates `msa.png`, `mcir.png`, `1.png`, etc. in the output dir.
+            for prod in keep:
+                # SatDump is case-sensitive, usually outputs things like msa.png or MSA.png
+                # Let's search for it case-insensitively
+                matches = list(tmp_path.glob(f"*{prod}*.{ext}"))
+                if not matches:
+                    matches = list(tmp_path.glob(f"*{prod.upper()}*.{ext}"))
+                    
+                if matches:
+                    src_file = matches[0] # Take the first match
+                    # Destination name: original_stem_product.png
+                    dst_name = f"{stem}_{prod}.{ext}"
+                    dst_path = final_output_dir / dst_name
+                    
+                    shutil.copy2(src_file, dst_path)
+                    output_products[prod] = dst_path
+                    found_any = True
+            
+            if found_any:
+                logger.info(f"SatDump decode success: extracted {list(output_products.keys())}")
+                return output_products
+            else:
+                logger.warning("SatDump succeeded but no requested products were found in output.")
+                return None
+                
+        except FileNotFoundError:
             logger.error(
-                f"aptdec failed (code {result.returncode}): {result.stderr}"
+                f"satdump not found at '{satdump_path}'. "
+                "Install it via: scripts/install_deps.sh"
             )
             return None
-
-    except FileNotFoundError:
-        logger.error(
-            f"aptdec not found at '{aptdec_path}'. "
-            "Install it via: scripts/install_deps.sh"
-        )
-        return None
-    except subprocess.TimeoutExpired:
-        logger.error("aptdec timed out after 120 seconds")
-        return None
+        except subprocess.TimeoutExpired:
+            logger.error("satdump timed out after 300 seconds")
+            return None

@@ -54,7 +54,7 @@ class AppConfig(BaseModel):
     tle: dict
     pass_prediction: dict
     recording: dict
-    apt_decoder: dict
+    satdump_decoder: dict
     image: dict
     noaa_weather_radio: dict
     nws_api: dict

@@ -12,6 +12,32 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
+def process_satdump_layers(layers: dict[str, Path]) -> dict[str, Path]:
+    """
+    Process the dictionary of images returned by SatDump.
+    For now, it just generates a thumbnail for the best available layer (e.g. msa).
+    """
+    if not layers:
+        return {}
+        
+    result = layers.copy()
+    
+    # Pick the best layer to generate a thumbnail from
+    best_layer_key = None
+    for pref in ["msa", "mcir", "1"]:
+        if pref in layers:
+            best_layer_key = pref
+            break
+    
+    if not best_layer_key:
+        best_layer_key = list(layers.keys())[0]
+        
+    thumb_path = generate_thumbnail(layers[best_layer_key])
+    result["thumb"] = thumb_path
+    
+    return result
+
+
 def apply_colormap(image_path: Path, colormap: str | None = None) -> Path:
     """
     Apply a colormap to a grayscale satellite image.

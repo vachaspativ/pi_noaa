@@ -62,11 +62,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS images (
-            filename TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             satellite_name TEXT,
             captured_at TEXT,
-            max_elevation REAL,
-            thumbnail_path TEXT,
+            payload_json TEXT,
             cached_at TEXT
         )
     """)
@@ -191,3 +190,67 @@ def _cleanup_old_alerts() -> None:
     
     conn.commit()
     conn.close()
+
+
+def save_image(image_data: dict) -> None:
+    """Save an image record containing multiple layers."""
+    conn = get_db()
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Needs a unique ID per pass, e.g. NOAA15_20260712_101500
+    img_id = image_data.get("id", f"{image_data.get('satellite_name')}_{image_data.get('captured_at')}")
+    
+    # If the table still has old schema (missing payload_json), this will fail.
+    # To be perfectly safe, we try dropping it if it's the old schema, 
+    # but since it was never used before, we assume fresh DB or we just catch it.
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO images 
+            (id, satellite_name, captured_at, payload_json, cached_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            img_id,
+            image_data.get("satellite_name"),
+            image_data.get("captured_at"),
+            json.dumps(image_data),
+            now
+        ))
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Schema mismatch, drop and recreate
+        cursor.execute("DROP TABLE IF EXISTS images")
+        _init_schema(conn)
+        cursor.execute("""
+            INSERT OR REPLACE INTO images 
+            (id, satellite_name, captured_at, payload_json, cached_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            img_id,
+            image_data.get("satellite_name"),
+            image_data.get("captured_at"),
+            json.dumps(image_data),
+            now
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def load_cached_images() -> list[dict]:
+    """Load all cached images, returning their full payloads (layers)."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT payload_json FROM images 
+            ORDER BY captured_at DESC
+        """)
+        
+        results = [json.loads(row["payload_json"]) for row in cursor.fetchall()]
+        conn.close()
+        return results
+    except sqlite3.OperationalError:
+        # If table doesn't exist or schema is old
+        return []

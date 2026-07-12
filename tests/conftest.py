@@ -37,9 +37,11 @@ pass_prediction:
 recording:
   output_dir: "{tmp}/recordings"
   format: "wav"
-apt_decoder:
-  backend: "aptdec"
+satdump_decoder:
+  backend: "satdump"
   output_dir: "{tmp}/images"
+  satdump_path: "satdump"
+  keep_products: ["msa", "mcir", "therm", "1", "2"]
 image:
   output_dir: "{tmp}/images"
 noaa_weather_radio:

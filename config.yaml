@@ -93,13 +93,17 @@ recording:
   max_recording_minutes: 20
   keep_raw_recordings: false
 
-apt_decoder:
-  backend: "aptdec"
-  aptdec_path: "/usr/local/bin/aptdec"
+satdump_decoder:
+  backend: "satdump"
+  satdump_path: "/usr/local/bin/satdump"
   output_dir: "data/images"
   image_format: "png"
-  enhancements:
-    - "ZA"
+  keep_products:
+    - "msa"
+    - "mcir"
+    - "therm"
+    - "1"
+    - "2"
   add_map_overlay: true
   add_telemetry_strip: true
   add_timestamp_watermark: true

@@ -18,12 +18,15 @@ sudo apt-get install -y \
 # Blacklist DVB-T kernel module (required for RTL-SDR)
 echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf
 
-# Install aptdec (APT image decoder)
-if ! command -v aptdec &> /dev/null; then
-    echo "--- Building aptdec ---"
-    git clone https://github.com/csete/aptdec.git /tmp/aptdec
-    cd /tmp/aptdec && mkdir build && cd build
-    cmake .. && make -j4
+# Install SatDump
+if ! command -v satdump &> /dev/null; then
+    echo "--- Building SatDump ---"
+    # Dependencies required by SatDump
+    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk2-dev
+    
+    git clone https://github.com/SatDump/SatDump.git /tmp/satdump
+    cd /tmp/satdump && mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON .. && make -j$(nproc)
     sudo make install
     cd -
 fi
