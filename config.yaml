@@ -1,0 +1,287 @@
+# ============================================================
+#  pi_noaa Configuration File — v2
+#  All tuneable parameters live here. No hardcoding in code.
+#
+#  ABOUT SATELLITE ENTRIES:
+#    frequency_hz  → SDR tuning param. Does NOT need internet.
+#                    These are fixed ITU allocations that never change.
+#    norad_id      → Used to fetch TLEs from Celestrak (needs internet).
+#                    TLEs are cached; system works offline with stale cache.
+# ============================================================
+
+# ─── Observer Location ───────────────────────────────────────
+location:
+  name: "Home Station"
+  latitude: 41.8827         # Decimal degrees, North positive
+  longitude: -87.6233       # Decimal degrees, East positive
+  altitude_m: 182           # Meters above sea level
+
+# ─── Operating Mode ──────────────────────────────────────────
+mode:
+  # "auto"        — Detect hardware & internet, choose best mode (recommended)
+  # "dual"        — Force SDR + NWS API (assume both available)
+  # "sdr_offline" — Force SDR + 162MHz WX Radio (no internet assumed)
+  # "api_only"    — Force NWS API alerts only (no SDR hardware)
+  # "degraded"    — Force cached data only (testing/demo)
+  primary: "auto"
+  recheck_interval_minutes: 10
+  sdr_arm_minutes_before: 5
+  wx_radio_between_passes: true
+
+# ─── SDR Hardware ────────────────────────────────────────────
+sdr:
+  device_index: 0
+  sample_rate_hz: 2400000
+  ppm_correction: 0
+  gain_mode: "auto"
+  gain_db: 49.6
+  bias_tee: false
+
+# ─── Satellite Targets ───────────────────────────────────────
+# frequency_hz: SDR hardware tuning — does NOT require internet
+# norad_id:     TLE lookup identity — requires internet (cached offline)
+satellites:
+  - name: "NOAA 15"
+    norad_id: 25338
+    frequency_hz: 137620000
+    signal_type: "APT"
+    enabled: true
+    min_elevation_deg: 10
+
+  - name: "NOAA 18"
+    norad_id: 28654
+    frequency_hz: 137912500
+    signal_type: "APT"
+    enabled: true
+    min_elevation_deg: 10
+
+  - name: "NOAA 19"
+    norad_id: 33591
+    frequency_hz: 137100000
+    signal_type: "APT"
+    enabled: true
+    min_elevation_deg: 10
+
+  - name: "Meteor-M2 3"
+    norad_id: 57166
+    frequency_hz: 137900000
+    signal_type: "LRPT"
+    enabled: false
+    min_elevation_deg: 15
+
+# ─── TLE / Orbital Data ──────────────────────────────────────
+tle:
+  weather_tle_url: "https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle"
+  cache_dir: "data/tle_cache"
+  tle_filename: "weather.tle"
+  cache_ttl_hours: 6
+  stale_tle_max_age_hours: 72
+  warn_if_stale_after_hours: 24
+  fallback_to_cached_passes: true
+
+# ─── Pass Prediction ─────────────────────────────────────────
+pass_prediction:
+  lookahead_hours: 24
+  max_passes_displayed: 10
+  scheduler_interval_minutes: 60
+
+# ─── Signal Recording & Decoding ─────────────────────────────
+recording:
+  output_dir: "data/recordings"
+  format: "wav"
+  sample_rate_hz: 48000
+  max_recording_minutes: 20
+  keep_raw_recordings: false
+
+apt_decoder:
+  backend: "aptdec"
+  aptdec_path: "/usr/local/bin/aptdec"
+  output_dir: "data/images"
+  image_format: "png"
+  enhancements:
+    - "ZA"
+  add_map_overlay: true
+  add_telemetry_strip: true
+  add_timestamp_watermark: true
+
+# ─── Image Enhancement ───────────────────────────────────────
+image:
+  output_dir: "data/images"
+  thumbnail_size: [320, 240]
+  max_images_stored: 50
+  colormap: "thermal"
+  auto_rotate: true
+
+# ─── NOAA Weather Radio — 162 MHz RF (TRUE OFFLINE ALERTS) ──
+noaa_weather_radio:
+  enabled: true
+  frequencies_hz:
+    - 162400000
+    - 162425000
+    - 162450000
+    - 162475000
+    - 162500000
+    - 162525000
+    - 162550000
+  auto_scan_on_start: true
+  preferred_frequency_hz: null
+  scan_dwell_seconds: 5
+  same_decoder:
+    enabled: true
+    fips_filter:
+      - "017031"
+    accept_all_areas: false
+  record_alert_audio: true
+  alert_audio_dir: "data/recordings/wx_alerts"
+  continuous_record: false
+
+# ─── NWS API Alerts (Online Only) ───────────────────────────
+nws_api:
+  base_url: "https://api.weather.gov"
+  alert_zone: "ILC031"
+  alert_state: "IL"
+  poll_interval_seconds: 60
+  request_timeout_seconds: 15
+  user_agent: "pi_noaa/2.0 (pi_noaa@example.com)"
+
+# ─── Alert Classification ─────────────────────────────────────
+alert_classification:
+  severity_filter:
+    - "Extreme"
+    - "Severe"
+    - "Moderate"
+  critical_events:
+    - "Tornado Warning"
+    - "Severe Thunderstorm Warning"
+    - "Flash Flood Emergency"
+    - "Flash Flood Warning"
+    - "Blizzard Warning"
+    - "Ice Storm Warning"
+    - "Extreme Wind Warning"
+    - "Special Marine Warning"
+    - "Dust Storm Warning"
+    - "Tsunami Warning"
+  high_events:
+    - "Hail Warning"
+    - "Flood Warning"
+    - "Winter Storm Warning"
+    - "Dense Fog Advisory"
+    - "Freeze Warning"
+    - "High Wind Warning"
+    - "Avalanche Warning"
+  moderate_events:
+    - "Flood Watch"
+    - "Flash Flood Watch"
+    - "Tornado Watch"
+    - "Severe Thunderstorm Watch"
+    - "Winter Storm Watch"
+    - "Frost Advisory"
+    - "Wind Advisory"
+
+# ─── Local Cache (SQLite — Offline Fallback) ────────────────
+offline_cache:
+  db_path: "data/pi_noaa.db"
+  max_cached_alerts: 200
+  max_stale_alert_age_hours: 48
+  cached_image_metadata_count: 20
+  cached_passes_count: 50
+  show_stale_banner: true
+
+# ─── Connectivity Probe ──────────────────────────────────────
+connectivity:
+  probe_host: "api.weather.gov"
+  probe_port: 443
+  probe_timeout_seconds: 5
+  probe_fallback_host: "1.1.1.1"
+
+# ─── Map Configuration ───────────────────────────────────────
+map:
+  tile_provider: "carto_dark"
+  osm_tile_url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  carto_dark_url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+  local_tile_server_port: 8080
+  local_tile_url: "http://localhost:8080/styles/basic/{z}/{x}/{y}.png"
+  mbtiles_path: "data/map_tiles/us_z0-10.mbtiles"
+  initial_center_lat: null
+  initial_center_lon: null
+  initial_zoom: 6
+  min_zoom: 3
+  max_zoom: 12
+  auto_fit_alerts_on_load: true
+  auto_zoom_on_new_alert: false
+  fit_bounds_padding: 40
+  alert_fill_opacity:
+    critical: 0.30
+    high: 0.25
+    moderate: 0.20
+    info: 0.15
+  alert_stroke_opacity: 0.85
+  alert_stroke_width_px: 2
+  animate_critical_polygons: true
+  animate_pulse_period_seconds: 2
+  show_alert_labels: true
+  label_min_zoom: 5
+  show_observer_marker: true
+  observer_marker_icon: "assets/icons/station_marker.svg"
+  show_satellite_ground_track: true
+  ground_track_color: "#00e5ff"
+  ground_track_opacity: 0.7
+  ground_track_dash_pattern: "8, 4"
+
+# ─── Geo Data ────────────────────────────────────────────────
+geo:
+  county_boundaries_path: "data/geo/us_counties_simplified.geojson"
+  state_boundaries_path: "data/geo/us_states.geojson"
+  simplification_tolerance: 0.01
+
+# ─── Web Server ──────────────────────────────────────────────
+server:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  secret_key: "CHANGE_ME_IN_PRODUCTION_USE_STRONG_RANDOM_KEY"
+  cors_origins:
+    - "http://localhost:5000"
+    - "http://pi_noaa.local:5000"
+  auth_enabled: false
+  auth_username: "admin"
+  auth_password: "changeme"
+
+# ─── WebSocket Push ──────────────────────────────────────────
+websocket:
+  pass_update_interval_seconds: 5
+  alert_push_on_new: true
+  system_status_interval_seconds: 30
+
+# ─── Storage & Retention ─────────────────────────────────────
+storage:
+  data_root: "data"
+  max_disk_usage_gb: 10
+  image_retention_days: 30
+  alert_retention_days: 90
+  recording_retention_days: 7
+
+# ─── Logging ─────────────────────────────────────────────────
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  log_filename: "pi_noaa.log"
+  max_bytes: 10485760
+  backup_count: 5
+  json_format: false
+
+# ─── Notifications (optional) ────────────────────────────────
+notifications:
+  enabled: false
+  ntfy:
+    enabled: false
+    server: "https://ntfy.sh"
+    topic: "pi_noaa_alerts"
+    min_severity: "Severe"
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your@email.com"
+    password: "your_app_password"
+    to_address: "your@email.com"

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Data directories (runtime generated)
+data/tle_cache/
+data/recordings/
+data/images/
+data/alerts/
+data/map_tiles/
+data/pi_noaa.db
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit real credentials)
+# config.yaml is committed with defaults — override locally

@@ -1,0 +1,162 @@
+:root {
+    --bg-base: #0a0a0f;
+    --bg-surface: #12121a;
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent: #00e5ff;
+    
+    --color-critical: #ef4444;
+    --color-high: #f97316;
+    --color-moderate: #eab308;
+    --color-info: #3b82f6;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-base);
+    color: var(--text-main);
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Banners */
+.banner {
+    width: 100%;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+    box-sizing: border-box;
+}
+
+#offline-banner {
+    background-color: var(--color-high);
+    color: white;
+}
+
+/* Ticker */
+.ticker-wrap {
+    width: 100%;
+    overflow: hidden;
+    background-color: #1a1a2e;
+    box-sizing: border-box;
+}
+.ticker {
+    display: inline-block;
+    white-space: nowrap;
+    padding-right: 100%;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    animation-name: ticker;
+    animation-duration: 30s;
+}
+@keyframes ticker {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-100%, 0, 0); }
+}
+.ticker-item {
+    display: inline-block;
+    padding: 0 2rem;
+    font-size: 1.1rem;
+    color: white;
+}
+
+/* Grid Layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 16px;
+    padding: 16px;
+    flex: 1;
+    min-height: 0; /* Important for scrollable areas in flex/grid */
+}
+
+/* Panels */
+.panel {
+    background-color: var(--bg-surface);
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid #2d2d3f;
+    display: flex;
+    flex-direction: column;
+}
+
+#map-panel {
+    padding: 0;
+    overflow: hidden;
+}
+#alert-map {
+    width: 100%;
+    height: 100%;
+}
+
+#sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+h2 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: var(--accent);
+    border-bottom: 1px solid #2d2d3f;
+    padding-bottom: 8px;
+}
+
+/* Countdown */
+.time-large {
+    font-size: 3rem;
+    font-family: monospace;
+    text-align: center;
+    color: var(--accent);
+}
+.pass-details {
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* Tables */
+.table-container {
+    overflow-y: auto;
+    flex: 1;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th, td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #2d2d3f;
+}
+th {
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+/* Badges */
+.badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: white;
+}
+
+/* Map Animations */
+@keyframes pulse-polygon {
+    0% { fill-opacity: 0.2; }
+    50% { fill-opacity: 0.6; }
+    100% { fill-opacity: 0.2; }
+}
+.pulse-polygon {
+    animation: pulse-polygon 2s infinite;
+}
