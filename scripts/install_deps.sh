@@ -27,7 +27,16 @@ if ! command -v satdump &> /dev/null; then
     rm -rf /tmp/satdump
     git clone https://github.com/SatDump/SatDump.git /tmp/satdump
     cd /tmp/satdump && mkdir build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON .. && make -j$(nproc)
+    
+    # Dynamically locate libogg.so to bypass CMake multiarch resolution bugs
+    OGG_PATH=$(find /usr/lib -name "libogg.so" 2>/dev/null | head -n 1)
+    CMAKE_FLAGS=""
+    if [ -n "$OGG_PATH" ]; then
+        CMAKE_FLAGS="-DOGG_LIBRARY=$OGG_PATH"
+        echo "Found libogg.so at: $OGG_PATH, passing to CMake"
+    fi
+    
+    cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON $CMAKE_FLAGS .. && make -j$(nproc)
     sudo make install
     cd -
     rm -rf /tmp/satdump
