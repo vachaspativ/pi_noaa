@@ -95,11 +95,18 @@ During the dependency installation, SatDump is built from source and the source 
   ```bash
   cd ~/satdump/build && git pull && make -j2 && sudo make install
   ```
+- **Where are the compilation logs?**
+  All compilation output (standard output and errors) from the latest build is written to:
+  `~/satdump/satdump_build.log`
+  You can check this file if you run into installation issues.
 - **How much space does it take?**
   The directory takes up roughly **600MB to 1GB** of storage.
 - **Can I delete it?**
-  Yes. If you are running low on SD card space, you can safely delete this folder:
+  Yes. If you are running low on SD card space, you can safely delete this folder and clean up your Pi. We have provided a post-installation cleanup script that automates this:
   ```bash
-  rm -rf ~/satdump
+  chmod +x scripts/cleanup.sh
+  ./scripts/cleanup.sh
   ```
-  Deleting it will not affect the operation of `pi_noaa` because the compiled binary has already been installed system-wide in `/usr/local/bin/satdump`. You will only need to rebuild it if you decide to update SatDump later.
+  This script will safely delete `~/satdump` (saving ~1GB of space), clear your system's package cache (`apt-get clean`), and clean up temporary python compiler caches.
+  
+  Deleting these build-related folders **will not affect** the operation of `pi_noaa`, as the compiled binary is installed system-wide at `/usr/local/bin/satdump`. You will only need to run the installer again if you want to update SatDump to a newer version in the future.

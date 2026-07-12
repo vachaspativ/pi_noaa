@@ -51,8 +51,15 @@ if ! command -v satdump &> /dev/null; then
         echo "Found libnng.so at: $NNG_PATH, passing to CMake"
     fi
     
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_GUI=OFF $CMAKE_FLAGS .. && make -j2
-    sudo make install
+    echo "--- Configuring SatDump ---" | tee ../satdump_build.log
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_GUI=OFF $CMAKE_FLAGS .. 2>&1 | tee -a ../satdump_build.log
+    
+    echo "--- Compiling SatDump ---" | tee -a ../satdump_build.log
+    make -j2 2>&1 | tee -a ../satdump_build.log
+    
+    echo "--- Installing SatDump ---" | tee -a ../satdump_build.log
+    sudo make install 2>&1 | tee -a ../satdump_build.log
+    
     cd -
 fi
 
