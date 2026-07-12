@@ -22,13 +22,14 @@ echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf
 if ! command -v satdump &> /dev/null; then
     echo "--- Building SatDump ---"
     # Dependencies required by SatDump
-    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk2-dev
+    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev
     
     git clone https://github.com/SatDump/SatDump.git /tmp/satdump
     cd /tmp/satdump && mkdir build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON .. && make -j$(nproc)
     sudo make install
     cd -
+    rm -rf /tmp/satdump
 fi
 
 # Python virtual environment
