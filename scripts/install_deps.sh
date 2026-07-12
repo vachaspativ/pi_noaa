@@ -22,18 +22,24 @@ echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf
 if ! command -v satdump &> /dev/null; then
     echo "--- Building SatDump ---"
     # Dependencies required by SatDump
-    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev
+    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev libnng-dev
     
     rm -rf /tmp/satdump
     git clone https://github.com/SatDump/SatDump.git /tmp/satdump
     cd /tmp/satdump && mkdir build && cd build
     
-    # Dynamically locate libogg.so to bypass CMake multiarch resolution bugs
+    # Dynamically locate libogg.so and libnng.so to bypass CMake multiarch resolution bugs
     OGG_PATH=$(find /usr/lib -name "libogg.so" 2>/dev/null | head -n 1)
+    NNG_PATH=$(find /usr/lib -name "libnng.so" 2>/dev/null | head -n 1)
+    
     CMAKE_FLAGS=""
     if [ -n "$OGG_PATH" ]; then
-        CMAKE_FLAGS="-DOGG_LIBRARY=$OGG_PATH"
+        CMAKE_FLAGS="$CMAKE_FLAGS -DOGG_LIBRARY=$OGG_PATH"
         echo "Found libogg.so at: $OGG_PATH, passing to CMake"
+    fi
+    if [ -n "$NNG_PATH" ]; then
+        CMAKE_FLAGS="$CMAKE_FLAGS -DNNG_LIBRARY=$NNG_PATH"
+        echo "Found libnng.so at: $NNG_PATH, passing to CMake"
     fi
     
     cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON $CMAKE_FLAGS .. && make -j$(nproc)
