@@ -22,7 +22,7 @@ echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf
 if ! command -v satdump &> /dev/null; then
     echo "--- Building SatDump ---"
     # Dependencies required by SatDump
-    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev libnng-dev
+    sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev libnng-dev libcurl4-openssl-dev libsqlite3-dev
     
     rm -rf /tmp/satdump
     git clone https://github.com/SatDump/SatDump.git /tmp/satdump
@@ -42,7 +42,7 @@ if ! command -v satdump &> /dev/null; then
         echo "Found libnng.so at: $NNG_PATH, passing to CMake"
     fi
     
-    cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON $CMAKE_FLAGS .. && make -j$(nproc)
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_GUI=OFF $CMAKE_FLAGS .. && make -j2
     sudo make install
     cd -
     rm -rf /tmp/satdump
