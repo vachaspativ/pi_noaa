@@ -24,6 +24,7 @@ if ! command -v satdump &> /dev/null; then
     # Dependencies required by SatDump
     sudo apt-get install -y libfftw3-dev libpng-dev libtiff-dev libvolk-dev libogg-dev libvorbis-dev
     
+    rm -rf /tmp/satdump
     git clone https://github.com/SatDump/SatDump.git /tmp/satdump
     cd /tmp/satdump && mkdir build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DNO_GUI=ON .. && make -j$(nproc)
