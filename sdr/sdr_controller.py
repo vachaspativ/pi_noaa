@@ -60,7 +60,9 @@ class SDRController:
             if "No supported devices found" in output:
                 return False, "SDR hardware not found."
                 
-            return False, f"SDR hardware test failed."
+            # Keep only the first few non-empty lines for cleaner logging/output
+            clean_output = " ".join([line.strip() for line in output.splitlines() if line.strip()][-2:])
+            return False, f"SDR hardware test failed: {clean_output}"
             
         except FileNotFoundError:
             return False, "SDR utilities (rtl_test) not installed."
