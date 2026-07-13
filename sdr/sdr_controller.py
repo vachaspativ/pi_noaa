@@ -27,47 +27,41 @@ class SDRController:
 
     def hardware_status(self) -> tuple[bool, str]:
         """Returns (is_available, status_message)."""
-        import time
         try:
-            # Start rtl_test as a background process
-            proc = subprocess.Popen(
+            # R820T tuners exit immediately with code 0.
+            # E4000 tuners run forever and will time out (which also implies success).
+            # Missing or busy devices exit immediately with a non-zero code.
+            result = subprocess.run(
                 ["rtl_test", "-t"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+                capture_output=True,
+                text=True,
+                timeout=2.0,
             )
-            # Wait a short duration to see if it starts streaming or exits with error
-            time.sleep(1.5)
-            
-            # Check if it has exited
-            if proc.poll() is None:
-                # Still running means it successfully claimed the interface and started testing!
-                proc.terminate()
-                try:
-                    proc.wait(timeout=1)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
+            if result.returncode == 0:
                 return True, "SDR is available and ready."
             
-            # It exited, meaning there was an error
-            stdout, stderr = proc.communicate()
-            output = stdout + stderr
+            output = result.stdout + result.stderr
+            return self._parse_rtl_test_error(output)
             
-            # Check if device was found but we couldn't open it (busy or blocked)
-            if "usb_claim_interface error" in output or "Failed to open rtlsdr device" in output:
-                return False, "SDR is connected but busy (accessed by another application or blocked by TV tuner driver)."
-            
-            if "No supported devices found" in output:
-                return False, "SDR hardware not found."
-                
-            # Keep only the first few non-empty lines for cleaner logging/output
-            clean_output = " ".join([line.strip() for line in output.splitlines() if line.strip()][-2:])
-            return False, f"SDR hardware test failed: {clean_output}"
-            
+        except subprocess.TimeoutExpired:
+            # If it timed out, it means the device successfully opened and was running the benchmark
+            return True, "SDR is available and ready."
         except FileNotFoundError:
             return False, "SDR utilities (rtl_test) not installed."
         except OSError:
             return False, "SDR hardware test execution failed."
+
+    def _parse_rtl_test_error(self, output: str) -> tuple[bool, str]:
+        # Check if device was found but we couldn't open it (busy or blocked)
+        if "usb_claim_interface error" in output or "Failed to open rtlsdr device" in output:
+            return False, "SDR is connected but busy (accessed by another application or blocked by TV tuner driver)."
+        
+        if "No supported devices found" in output:
+            return False, "SDR hardware not found."
+            
+        # Keep only the first few non-empty lines for cleaner logging/output
+        clean_output = " ".join([line.strip() for line in output.splitlines() if line.strip()][-2:])
+        return False, f"SDR hardware test failed: {clean_output}"
 
     def is_hardware_present(self) -> bool:
         """Quick check — tries to open device via rtl_test."""
