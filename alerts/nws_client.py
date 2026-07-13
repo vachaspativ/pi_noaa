@@ -53,9 +53,10 @@ class NWSClient:
             
         try:
             async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout) as client:
-                logger.debug(f"Fetching NWS alerts from {url}")
+                logger.debug(f"[NWS API] Connecting to fetch alerts from: {url}")
                 response = await client.get(url)
                 
+                logger.debug(f"[NWS API] Response received - Status: {response.status_code}, Bytes: {len(response.content)}")
                 if response.status_code != 200:
                     raise NWSAPIError(
                         f"NWS API returned {response.status_code}: {response.text}"
@@ -63,6 +64,7 @@ class NWSClient:
                     
                 data = response.json()
                 features = data.get("features", [])
+                logger.debug(f"[NWS API] Successfully parsed {len(features)} active NWS alerts from JSON payload")
                 logger.info(f"Fetched {len(features)} active NWS alerts")
                 return features
                 

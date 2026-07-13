@@ -43,9 +43,12 @@ def fetch_and_cache_tles() -> Path | None:
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
+        logger.debug("[TLE API] Connecting to fetch TLE data from: %s", url)
         logger.info("Fetching TLE data from %s", url)
         with httpx.Client(timeout=30.0) as client:
             response = client.get(url)
+            
+            logger.debug("[TLE API] Response received - Status: %s, Bytes: %s", response.status_code, len(response.content))
             response.raise_for_status()
 
         tle_text = response.text.strip()
@@ -61,6 +64,7 @@ def fetch_and_cache_tles() -> Path | None:
             datetime.now(timezone.utc).isoformat(), encoding="utf-8"
         )
 
+        logger.debug("[TLE API] Successfully parsed and cached TLE data (%d bytes) to %s", len(tle_text), cache_path)
         logger.info("TLE cache updated: %s (%d bytes)", cache_path, len(tle_text))
         return cache_path
 

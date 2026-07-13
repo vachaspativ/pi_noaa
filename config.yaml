@@ -267,7 +267,7 @@ storage:
 
 # ─── Logging ─────────────────────────────────────────────────
 logging:
-  level: "INFO"
+  level: "DEBUG"
   log_dir: "logs"
   log_filename: "pi_noaa.log"
   max_bytes: 10485760

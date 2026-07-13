@@ -58,15 +58,22 @@ def _decode_with_satdump(
         cmd = [satdump_path, "noaa_apt", "wav", str(wav_path), str(tmp_path)]
         
         logger.info(f"Decoding APT with SatDump: {wav_path.name}")
+        logger.debug(f"[SATDUMP] Executing command: {' '.join(cmd)}")
         logger.debug(f"satdump command: {' '.join(cmd)}")
         
         try:
+            import time
+            start_time = time.time()
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=300, # Satdump might take a bit longer
             )
+            duration = time.time() - start_time
+            
+            logger.debug(f"[SATDUMP] Execution completed in {duration:.2f} seconds. Status code: {result.returncode}")
+            logger.debug(f"[SATDUMP] Output size - STDOUT: {len(result.stdout)} bytes, STDERR: {len(result.stderr)} bytes")
             
             if result.returncode != 0:
                 logger.error(f"satdump failed (code {result.returncode}): {result.stderr}")
@@ -96,9 +103,11 @@ def _decode_with_satdump(
                     
                     shutil.copy2(src_file, dst_path)
                     output_products[prod] = dst_path
+                    logger.debug(f"[SATDUMP] Extracted product '{prod}' ({src_file.stat().st_size} bytes) -> {dst_path}")
                     found_any = True
             
             if found_any:
+                logger.debug(f"[SATDUMP] Successfully extracted {len(output_products)} requested products.")
                 logger.info(f"SatDump decode success: extracted {list(output_products.keys())}")
                 return output_products
             else:
