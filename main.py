@@ -43,14 +43,25 @@ def main():
     mode = resolve_mode()
     print(f"🛰  pi_noaa starting — mode: [{mode.value.upper()}]")
 
-    # TLE staleness check
+    # TLE staleness check and auto-fetch
+    from orbital.tle_fetcher import fetch_and_cache_tles
     usable, reason = tle_is_usable()
+    age = get_tle_age_hours()
+
+    if mode in (OperatingMode.DUAL, OperatingMode.API_ONLY):
+        if not usable or age is None or age > 24:
+            print("   ↻ Fetching fresh TLE orbital data from internet...")
+            if fetch_and_cache_tles():
+                usable, reason = tle_is_usable()
+                print("   ✓ TLE cache successfully updated.")
+            else:
+                print("   ✗ Failed to fetch TLE data.")
+
     if not usable:
         print(f"⚠  TLE: {reason}")
         if mode in (OperatingMode.SDR_OFFLINE, OperatingMode.DUAL):
-            age = get_tle_age_hours()
-            if age is None:
-                print("   ✗ No TLE cache. Run with internet first to populate TLE data.")
+            if get_tle_age_hours() is None:
+                print("   ✗ No TLE cache available. Satellite pass predictions will fail.")
     else:
         print(f"   TLE: {reason}")
 
