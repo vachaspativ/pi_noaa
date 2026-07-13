@@ -95,6 +95,25 @@ async def lifespan(app: FastAPI):
         if freq:
             app_state.wx_receiver.start_monitoring(freq)
             
+    # 4. Start TLE maintainer loop
+    async def tle_maintainer():
+        from orbital.tle_staleness import tle_is_usable
+        from orbital.tle_fetcher import fetch_and_cache_tles
+        interval = cfg.pass_prediction.get("scheduler_interval_minutes", 60)
+        while True:
+            try:
+                usable, reason = tle_is_usable()
+                if not usable or reason == "stale":
+                    logger.info(f"TLE data is {reason}, attempting to fetch fresh TLE...")
+                    loop = asyncio.get_running_loop()
+                    # fetch_and_cache_tles is blocking (httpx sync)
+                    await loop.run_in_executor(None, fetch_and_cache_tles)
+            except Exception as e:
+                logger.error(f"Error in TLE maintainer: {e}")
+            await asyncio.sleep(interval * 60)
+
+    tle_task = asyncio.create_task(tle_maintainer())
+    
     # Attach state to app
     app.state.nws_monitor = app_state.nws_monitor
     app.state.same_active_alerts = app_state.same_active_alerts
@@ -109,6 +128,7 @@ async def lifespan(app: FastAPI):
         app_state.wx_receiver.stop_monitoring()
     
     nws_task.cancel()
+    tle_task.cancel()
 
 
 def build_app(mode: OperatingMode) -> socketio.ASGIApp:
