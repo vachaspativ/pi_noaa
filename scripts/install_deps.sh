@@ -18,6 +18,8 @@ sudo apt-get install -y \
 # Blacklist DVB-T kernel module (required for RTL-SDR)
 echo "blacklist dvb_usb_rtl28xxu" | sudo tee /etc/modprobe.d/blacklist-rtl.conf
 
+PROJECT_ROOT=$(pwd)
+
 # Install SatDump
 if ! command -v satdump &> /dev/null; then
     echo "--- Building SatDump ---"
@@ -60,8 +62,10 @@ if ! command -v satdump &> /dev/null; then
     echo "--- Installing SatDump ---" | tee -a ../satdump_build.log
     sudo make install 2>&1 | tee -a ../satdump_build.log
     
-    cd -
+    cd "$PROJECT_ROOT"
 fi
+
+cd "$PROJECT_ROOT"
 
 # Python virtual environment
 if [ ! -d "venv" ]; then
