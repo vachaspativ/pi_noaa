@@ -128,7 +128,7 @@ noaa_weather_radio:
     - 162525000
     - 162550000
   auto_scan_on_start: true
-  preferred_frequency_hz: null
+  preferred_frequency_hz: 162400000
   scan_dwell_seconds: 5
   same_decoder:
     enabled: true
