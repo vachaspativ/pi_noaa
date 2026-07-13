@@ -25,17 +25,30 @@ class SDRController:
         self._recording = False
         self._lock = threading.Lock()
 
-    def is_hardware_present(self) -> bool:
-        """Quick check — tries to open device via rtl_test."""
+    def hardware_status(self) -> tuple[bool, str]:
+        """Returns (is_available, status_message)."""
         try:
             result = subprocess.run(
                 ["rtl_test", "-t"],
                 capture_output=True,
+                text=True,
                 timeout=5,
             )
-            return result.returncode == 0
+            output = result.stdout + result.stderr
+            if result.returncode == 0:
+                return True, "SDR is available and ready."
+            
+            # Check if device was found but we couldn't open it (busy or blocked)
+            if "usb_claim_interface error" in output or "Failed to open rtlsdr device" in output:
+                if "Found 1 device(s)" in output or "Found " in output:
+                    return False, "SDR is connected but busy (accessed by another application or blocked by TV tuner driver)."
+            return False, "SDR hardware not found."
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            return False
+            return False, "SDR utilities not installed or command failed."
+
+    def is_hardware_present(self) -> bool:
+        """Quick check — tries to open device via rtl_test."""
+        return self.hardware_status()[0]
 
     def start_recording(self, frequency_hz: int, output_path: Path) -> bool:
         """

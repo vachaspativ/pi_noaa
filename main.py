@@ -24,8 +24,8 @@ def main():
 
     if args.check_hardware:
         from sdr.sdr_controller import SDRController
-        present = SDRController().is_hardware_present()
-        print(f"RTL-SDR hardware: {'✓ Found' if present else '✗ Not found'}")
+        present, reason = SDRController().hardware_status()
+        print(f"RTL-SDR hardware: {'✓' if present else '✗'} {reason}")
         return
 
     if args.check_connectivity:

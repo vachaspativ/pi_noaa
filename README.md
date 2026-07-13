@@ -39,6 +39,11 @@ Copy `config.yaml` to match your local setup.
 - Set `nws_api.alert_zone` (e.g. ILC031 for Cook County, IL)
 
 ### 4. First-run checks
+Activate your virtual environment before running any python commands:
+```bash
+source venv/bin/activate
+```
+
 Ensure your SDR is detected:
 ```bash
 python main.py --check-hardware
@@ -83,7 +88,9 @@ The app time-shares the SDR. Between satellite passes, it tunes to your local NW
 
 ## Troubleshooting
 
-- **SDR not detected**: Run `scripts/setup_rtlsdr.sh` and reboot.
+- **SDR not detected**:
+  1. Check if the OS sees the USB device by running `lsusb`. Look for something like `Realtek Semiconductor Corp. RTL2838 DVB-T`.
+  2. Check if the driver is accessible by running `rtl_test -t`. This tests if the OS has claimed it as a TV tuner. If this fails, run `scripts/setup_rtlsdr.sh`, then unplug and replug the SDR (or reboot the Pi) so the TV tuner driver is blacklisted properly.
 - **No satellite passes shown**: Ensure your system time is correct and you have an initial internet connection to download TLEs.
 - **Map tiles not appearing offline**: You need to download an `.mbtiles` file and run `tileserver-gl`. (Detailed guide coming soon).
 

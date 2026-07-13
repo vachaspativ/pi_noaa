@@ -4,7 +4,7 @@ Manages the lifespan (startup/shutdown) of background tasks like NWS polling and
 """
 import socketio
 import asyncio
-from contextlib import asynccontextdecorator, asynccontextmanager
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
