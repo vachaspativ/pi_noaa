@@ -41,13 +41,15 @@ async def get_next_pass():
         if p is None:
             return {"pass": None, "message": "No upcoming passes found"}
         return {
-            "satellite_name": p.satellite_name,
-            "norad_id": p.norad_id,
-            "frequency_hz": p.frequency_hz,
-            "aos": p.aos.isoformat() if p.aos else None,
-            "los": p.los.isoformat() if p.los else None,
-            "max_elevation_deg": p.max_elevation_deg,
-            "duration_seconds": p.duration_seconds,
+            "pass": {
+                "satellite_name": p.satellite_name,
+                "norad_id": p.norad_id,
+                "frequency_hz": p.frequency_hz,
+                "aos": p.aos.isoformat() if p.aos else None,
+                "los": p.los.isoformat() if p.los else None,
+                "max_elevation_deg": p.max_elevation_deg,
+                "duration_seconds": p.duration_seconds,
+            }
         }
     except Exception as e:
         return {"error": str(e), "pass": None}
