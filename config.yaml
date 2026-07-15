@@ -134,7 +134,7 @@ noaa_weather_radio:
     enabled: true
     fips_filter:
       - "048085"
-    accept_all_areas: false
+    accept_all_areas: true
   record_alert_audio: true
   alert_audio_dir: "data/recordings/wx_alerts"
   continuous_record: false
