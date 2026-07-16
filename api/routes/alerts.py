@@ -1,7 +1,7 @@
 """
 API routes for weather alerts.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from alerts.alert_merger import merge_alerts
 from alerts.cache_store import load_cached_alerts
 from core.connectivity import is_internet_available
@@ -16,7 +16,7 @@ router = APIRouter(tags=["alerts"])
 # We will assume they are attached to the app state in server.py
 
 @router.get("/alerts")
-async def get_all_alerts(request):
+async def get_all_alerts(request: Request):
     """Get all active alerts, merged and prioritized."""
     try:
         app_state = request.app.state
