@@ -36,10 +36,19 @@ def main():
     print("[2/5] Checking TLE cache file...")
     tle_cfg = cfg.tle
     cache_path = Path(tle_cfg["cache_dir"]) / tle_cfg["tle_filename"]
+    
+    # Always attempt a fresh fetch so we use the latest fetcher logic
+    print("  ↻ Fetching fresh TLE data (group + individual satellites)...")
+    from orbital.tle_fetcher import fetch_and_cache_tles
+    result = fetch_and_cache_tles()
+    if result:
+        print(f"  ✓ TLE fetch successful.")
+    else:
+        print(f"  ✗ TLE fetch failed.")
+    
     if not cache_path.exists():
         print(f"  ✗ TLE cache NOT FOUND at: {cache_path}")
         print("  → This is why passes are not being calculated!")
-        print("  → Run 'python main.py' with internet to auto-fetch TLE data.")
         sys.exit(1)
     
     size = cache_path.stat().st_size
