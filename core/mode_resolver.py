@@ -25,16 +25,12 @@ _mode_change_callbacks: list[Callable] = []
 
 
 def _check_sdr_hardware() -> bool:
-    """Check if RTL-SDR hardware is present without importing sdr module at module level."""
-    import subprocess
+    """Check if RTL-SDR hardware is present by deferring to the SDRController."""
     try:
-        result = subprocess.run(
-            ["rtl_test", "-t"],
-            capture_output=True,
-            timeout=5,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        from sdr.sdr_controller import SDRController
+        return SDRController().is_hardware_present()
+    except Exception as e:
+        logger.error(f"Failed to check SDR hardware: {e}")
         return False
 
 
