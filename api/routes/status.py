@@ -3,7 +3,7 @@ System health and status API routes.
 """
 import shutil
 import psutil
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from core.mode_resolver import get_current_mode
 from core.connectivity import is_internet_available
 from orbital.tle_staleness import get_tle_age_hours, tle_is_usable
@@ -16,7 +16,7 @@ _sdr_controller = SDRController()
 
 
 @router.get("/status")
-async def get_system_status():
+async def get_system_status(request: Request):
     """Return comprehensive system health and status."""
     
     # Mode & connectivity
@@ -28,9 +28,20 @@ async def get_system_status():
     tle_age = get_tle_age_hours()
     tle_usable, tle_msg = tle_is_usable()
     
-    # SDR
-    sdr_present = _sdr_controller.is_hardware_present()
+    # SDR — check if our own app is using it first (WX Radio or recording)
     sdr_recording = _sdr_controller.is_recording
+    
+    # Check if the WX receiver is actively monitoring (it holds the SDR)
+    wx_using_sdr = False
+    if hasattr(request.app.state, "wx_receiver") and request.app.state.wx_receiver:
+        wx_using_sdr = request.app.state.wx_receiver.is_monitoring
+    
+    if sdr_recording or wx_using_sdr:
+        # Our app is actively using the SDR — it's definitely present
+        sdr_present = True
+    else:
+        # SDR is not in use by us, safe to probe with rtl_test
+        sdr_present = _sdr_controller.is_hardware_present()
     
     # System resources
     disk = shutil.disk_usage("/")
