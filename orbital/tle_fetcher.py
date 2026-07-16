@@ -29,13 +29,15 @@ def fetch_and_cache_tles() -> Path | None:
     """
     Download the TLE set from the configured URL and write it to the cache file.
 
-    Creates the cache directory if it does not exist.  A ``.timestamp`` file is
-    written alongside the TLE file so other modules can cheaply check freshness.
+    After fetching the group TLE, checks whether each enabled satellite's
+    NORAD ID is present. Any missing satellites are individually fetched
+    from Celestrak by catalog number and appended to the cache.
 
     Returns:
         Path to the cached TLE file on success, or None on failure.
     """
-    cfg = get_config().tle
+    cfg_root = get_config()
+    cfg = cfg_root.tle
     url: str = cfg["weather_tle_url"]
     cache_path = _get_cache_path()
     timestamp_path = _get_timestamp_path()
@@ -43,11 +45,12 @@ def fetch_and_cache_tles() -> Path | None:
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # --- Step 1: Fetch the main group TLE ---
         logger.debug("[TLE API] Connecting to fetch TLE data from: %s", url)
         logger.info("Fetching TLE data from %s", url)
         with httpx.Client(timeout=30.0) as client:
             response = client.get(url)
-            
+
             logger.debug("[TLE API] Response received - Status: %s, Bytes: %s", response.status_code, len(response.content))
             response.raise_for_status()
 
@@ -55,6 +58,46 @@ def fetch_and_cache_tles() -> Path | None:
         if not tle_text:
             logger.warning("TLE response was empty — keeping existing cache")
             return cache_path if cache_path.exists() else None
+
+        # --- Step 2: Check for missing satellites and fetch individually ---
+        enabled_norad_ids = [
+            s.norad_id for s in cfg_root.satellites if s.enabled
+        ]
+
+        missing_ids = []
+        for norad_id in enabled_norad_ids:
+            norad_str = str(norad_id)
+            found = False
+            for line in tle_text.splitlines():
+                if line.startswith("1 ") and line[2:7].strip() == norad_str:
+                    found = True
+                    break
+            if not found:
+                missing_ids.append(norad_id)
+
+        if missing_ids:
+            logger.info(
+                "Group TLE missing %d configured satellite(s): %s. Fetching individually...",
+                len(missing_ids), missing_ids,
+            )
+            base_url = "https://celestrak.org/NORAD/elements/gp.php"
+            with httpx.Client(timeout=30.0) as client:
+                for norad_id in missing_ids:
+                    ind_url = f"{base_url}?CATNR={norad_id}&FORMAT=tle"
+                    logger.debug("[TLE API] Fetching individual TLE for NORAD %d from: %s", norad_id, ind_url)
+                    try:
+                        ind_resp = client.get(ind_url)
+                        ind_resp.raise_for_status()
+                        ind_text = ind_resp.text.strip()
+                        if ind_text and "1 " in ind_text:
+                            tle_text += "\n" + ind_text
+                            logger.info("Fetched TLE for NORAD %d (%d bytes)", norad_id, len(ind_text))
+                        else:
+                            logger.warning("Empty or invalid TLE response for NORAD %d", norad_id)
+                    except httpx.HTTPStatusError as exc:
+                        logger.warning("Failed to fetch TLE for NORAD %d: HTTP %d", norad_id, exc.response.status_code)
+                    except httpx.RequestError as exc:
+                        logger.warning("Request error fetching TLE for NORAD %d: %s", norad_id, exc)
 
         cache_path.write_text(tle_text, encoding="utf-8")
 
