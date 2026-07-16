@@ -5,6 +5,7 @@ Manages the lifespan (startup/shutdown) of background tasks like NWS polling and
 import socketio
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -114,9 +115,118 @@ async def lifespan(app: FastAPI):
 
     tle_task = asyncio.create_task(tle_maintainer())
     
+    # 5. Start Pass Orchestrator loop (Time-shares the SDR for satellite passes)
+    async def pass_orchestrator():
+        from sdr.signal_recorder import record_pass
+        from sdr.apt_decoder import decode_apt
+        from sdr.image_processor import process_satdump_layers
+        from alerts.cache_store import save_image
+        from orbital.pass_predictor import get_next_pass
+        
+        logger.info("[Orchestrator] Satellite Pass Orchestrator loop started")
+        
+        while True:
+            try:
+                # Resolve mode and next pass
+                mode = get_config().mode.get("primary", "auto")
+                # We only orchestrate passes if the mode uses SDR (auto, dual, sdr_offline)
+                # If it's api_only or degraded, we skip pass recording
+                from core.mode_resolver import get_current_mode, OperatingMode
+                current_mode = get_current_mode()
+                
+                if current_mode in (OperatingMode.API_ONLY, OperatingMode.DEGRADED):
+                    await asyncio.sleep(30)
+                    continue
+                    
+                next_pass = get_next_pass()
+                if next_pass is None:
+                    await asyncio.sleep(30)
+                    continue
+                    
+                utc_now = datetime.now(timezone.utc)
+                aos = next_pass.aos
+                los = next_pass.los
+                
+                # Check if it is time to record.
+                # If we are within the pass window (AOS to LOS), start recording.
+                if utc_now >= aos and utc_now < los:
+                    logger.info(f"[Orchestrator] Active satellite pass detected for {next_pass.satellite_name}. Initiating pass workflow.")
+                    
+                    # Stop Weather Radio if active to free up the SDR device
+                    if app_state.wx_receiver and app_state.wx_receiver.is_monitoring:
+                        logger.info("[Orchestrator] Stopping WX Radio receiver to release SDR hardware lock.")
+                        app_state.wx_receiver.stop_monitoring()
+                        # Short delay to allow OS drivers to release the interface cleanly
+                        await asyncio.sleep(1.5)
+                    
+                    # Run recording (blocking call, offload to executor)
+                    logger.info(f"[Orchestrator] Starting SDR recording for {next_pass.satellite_name}")
+                    loop = asyncio.get_running_loop()
+                    wav_path = await loop.run_in_executor(None, record_pass, next_pass)
+                    
+                    if wav_path and wav_path.exists():
+                        logger.info(f"[Orchestrator] Recording finished successfully: {wav_path.name}. Beginning SatDump demodulation.")
+                        
+                        # Run decoding (blocking call, offload to executor)
+                        layers = await loop.run_in_executor(None, decode_apt, wav_path)
+                        
+                        if layers:
+                            # Generate thumbnails and process colormap layers
+                            processed_layers = process_satdump_layers(layers)
+                            
+                            # Prepare metadata payload for database
+                            timestamp_str = utc_now.strftime("%Y%m%d_%H%M%S")
+                            safe_name = next_pass.satellite_name.replace(" ", "_")
+                            img_id = f"{safe_name}_{timestamp_str}"
+                            
+                            image_metadata = {
+                                "id": img_id,
+                                "satellite_name": next_pass.satellite_name,
+                                "captured_at": utc_now.isoformat(),
+                            }
+                            
+                            # Convert Path objects to string paths for JSON serialization
+                            for layer_name, path in processed_layers.items():
+                                image_metadata[layer_name] = str(path)
+                            
+                            logger.info(f"[Orchestrator] Saving image metadata to cache for {img_id}")
+                            save_image(image_metadata)
+                            
+                            # Push WS event to notify client
+                            await sio.emit("new_image", image_metadata)
+                            logger.info(f"[Orchestrator] Pushed new_image WS update for {img_id}")
+                            
+                        else:
+                            logger.error("[Orchestrator] SatDump decoding failed or returned no layers.")
+                    else:
+                        logger.error("[Orchestrator] Satellite recording returned empty WAV file or failed.")
+                    
+                    # Restore Weather Radio monitoring if enabled in config
+                    if cfg.noaa_weather_radio.get("enabled", False) and app_state.wx_receiver:
+                        freq = cfg.noaa_weather_radio.get("preferred_frequency_hz")
+                        if freq:
+                            logger.info(f"[Orchestrator] Restoring WX Radio monitoring on {freq / 1e6:.4f} MHz")
+                            app_state.wx_receiver.start_monitoring(freq)
+                            
+                elif utc_now < aos:
+                    # Pass is in the future. Sleep until shortly before AOS, capped at 30 seconds
+                    sleep_time = (aos - utc_now).total_seconds()
+                    await asyncio.sleep(min(sleep_time - 5, 30))
+                    continue
+                else:
+                    # Pass has already ended, sleep a moment before fetching next
+                    await asyncio.sleep(10)
+                    
+            except Exception as e:
+                logger.error(f"[Orchestrator] Error in background pass loop: {e}", exc_info=True)
+                await asyncio.sleep(30)
+
+    pass_task = asyncio.create_task(pass_orchestrator())
+
     # Attach state to app
     app.state.nws_monitor = app_state.nws_monitor
     app.state.same_active_alerts = app_state.same_active_alerts
+    app.state.wx_receiver = app_state.wx_receiver
     
     yield
     
@@ -129,6 +239,7 @@ async def lifespan(app: FastAPI):
     
     nws_task.cancel()
     tle_task.cancel()
+    pass_task.cancel()
 
 
 def build_app(mode: OperatingMode) -> socketio.ASGIApp:
