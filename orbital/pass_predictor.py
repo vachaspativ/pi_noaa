@@ -70,7 +70,9 @@ def _predict_passes_for_satellite(
         return []
 
     utc_now = datetime.now(timezone.utc)
-    utc_start = utc_now
+    # Start looking 30 minutes in the past to catch passes that are currently active!
+    # Pyorbital skips passes if they have already started (AOS < utc_start).
+    utc_start = utc_now - timedelta(minutes=30)
     utc_end = utc_now + timedelta(hours=lookahead_hours)
 
     try:
@@ -107,6 +109,10 @@ def _predict_passes_for_satellite(
             # Ensure AOS/LOS are timezone-aware (UTC)
             aos_utc = rise_time if rise_time.tzinfo else rise_time.replace(tzinfo=timezone.utc)
             los_utc = fall_time if fall_time.tzinfo else fall_time.replace(tzinfo=timezone.utc)
+
+            # Because we started looking 30 minutes in the past, filter out passes that have already completely finished.
+            if los_utc <= utc_now:
+                continue
 
             results.append(
                 SatellitePass(

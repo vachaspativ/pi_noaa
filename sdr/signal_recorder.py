@@ -41,9 +41,10 @@ def record_pass(satellite_pass) -> Path | None:
         logger.error("SDR hardware not present — cannot record pass")
         return None
 
-    # Calculate recording duration
+    # Calculate recording duration (remaining time until LOS)
     if satellite_pass.aos and satellite_pass.los:
-        duration_seconds = (satellite_pass.los - satellite_pass.aos).total_seconds()
+        now = datetime.now(timezone.utc)
+        duration_seconds = max(0.0, (satellite_pass.los - now).total_seconds())
     else:
         duration_seconds = rec_cfg.get("max_recording_minutes", 20) * 60
 
