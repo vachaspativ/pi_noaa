@@ -93,7 +93,11 @@ The app time-shares the SDR. Between satellite passes, it tunes to your local NW
   2. Check if the driver is accessible by running `rtl_test -t`. This tests if the OS has claimed it as a TV tuner. If this fails, run `scripts/setup_rtlsdr.sh`, then unplug and replug the SDR (or reboot the Pi) so the TV tuner driver is blacklisted properly.
 - **UI shows "Recording..." but no files/images are generated**: 
   1. Ensure your SDR hardware is fully connected and detected (`rtl_test -t` completes or runs without immediate error). If the backend fails to detect the SDR, it falls back to `api_only` mode and skips recording entirely, even though the frontend UI timer will still tick down and show "Recording".
-  2. Ensure your codebase is up to date. Previous versions had a bug where `pyorbital` would skip currently active passes, causing the backend to miss the recording window.
+  2. Ensure your codebase is up to date. The pipeline has been overhauled to resolve several critical bugs:
+     - **Singleton SDR Controller**: Sharing a single instance of `SDRController` across the application prevents orphaned recording processes and avoids interference from the `rtl_test` status checks.
+     - **Process Health Checks**: Startups of `rtl_fm` and `sox` are actively monitored and validated (errors are captured instead of being swallowed silently).
+     - **Clean Pipe Termination**: The `rtl_fm` stdout pipe is explicitly closed on stop, allowing `sox` to see EOF and finalize WAV headers correctly without generating corrupt/zero-byte files.
+     - **Orchestrator Timing**: Event loop starvation caused by negative sleep values in the scheduler has been corrected, and a post-recording cooldown is enforced.
 - **No satellite passes shown**: Ensure your system time is correct and you have an initial internet connection to download TLEs.
 - **Map tiles not appearing offline**: You need to download an `.mbtiles` file and run `tileserver-gl`. (Detailed guide coming soon).
 
