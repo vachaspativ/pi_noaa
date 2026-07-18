@@ -11,9 +11,6 @@ from sdr.sdr_controller import SDRController
 
 router = APIRouter(tags=["status"])
 
-# Instantiate once for status checks
-_sdr_controller = SDRController()
-
 
 @router.get("/status")
 async def get_system_status(request: Request):
@@ -29,7 +26,8 @@ async def get_system_status(request: Request):
     tle_usable, tle_msg = tle_is_usable()
     
     # SDR — check if our own app is using it first (WX Radio or recording)
-    sdr_recording = _sdr_controller.is_recording
+    sdr = SDRController()  # Singleton — shared recording state
+    sdr_recording = sdr.is_recording
     
     # Check if the WX receiver is actively monitoring (it holds the SDR)
     wx_using_sdr = False
@@ -41,7 +39,7 @@ async def get_system_status(request: Request):
         sdr_present = True
     else:
         # SDR is not in use by us, safe to probe with rtl_test
-        sdr_present = _sdr_controller.is_hardware_present()
+        sdr_present = sdr.is_hardware_present()
     
     # System resources
     disk = shutil.disk_usage("/")

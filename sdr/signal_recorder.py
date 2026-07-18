@@ -35,7 +35,11 @@ def record_pass(satellite_pass) -> Path | None:
     filename = f"{safe_name}_{timestamp}.wav"
     output_path = output_dir / filename
 
-    sdr = SDRController()
+    sdr = SDRController()  # Singleton — same instance across app
+
+    if sdr.is_recording:
+        logger.warning("SDR is already recording — skipping duplicate pass request")
+        return None
 
     if not sdr.is_hardware_present():
         logger.error("SDR hardware not present — cannot record pass")

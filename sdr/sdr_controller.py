@@ -5,6 +5,7 @@ Uses rtl_fm (subprocess) for robust FM demodulation.
 """
 import subprocess
 import threading
+import time
 from pathlib import Path
 from core.config_loader import get_config
 from core.logger import get_logger
@@ -16,14 +17,30 @@ class SDRController:
     """
     Controls the RTL-SDR dongle for recording satellite signals.
     Thread-safe — uses a lock to prevent simultaneous recordings.
+
+    Singleton: all callers receive the same instance so that
+    recording state (is_recording, _process handles) is shared
+    across the status API, signal_recorder, and orchestrator.
     """
 
+    _instance = None
+    _init_done = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        if SDRController._init_done:
+            return
         self.cfg = get_config()
         self._process: subprocess.Popen | None = None
         self._sox_process: subprocess.Popen | None = None
         self._recording = False
         self._lock = threading.Lock()
+        self._last_error: str | None = None
+        SDRController._init_done = True
 
     def hardware_status(self) -> tuple[bool, str]:
         """Returns (is_available, status_message)."""
@@ -83,6 +100,7 @@ class SDRController:
                 logger.warning("Already recording — skipping start request")
                 return False
 
+            self._last_error = None
             sdr_cfg = self.cfg.sdr
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,20 +132,51 @@ class SDRController:
                 logger.info(
                     f"Starting SDR recording: {frequency_hz / 1e6:.4f} MHz → {output_path}"
                 )
+                logger.debug(f"rtl_fm command: {' '.join(rtl_cmd)}")
+                logger.debug(f"sox command: {' '.join(sox_cmd)}")
+
                 self._process = subprocess.Popen(
                     rtl_cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                 )
                 self._sox_process = subprocess.Popen(
                     sox_cmd,
                     stdin=self._process.stdout,
-                    stderr=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                 )
+
+                # Give rtl_fm a moment to start, then verify it's alive.
+                # If the device is missing or busy, rtl_fm exits immediately.
+                time.sleep(1.5)
+                rtl_poll = self._process.poll()
+                if rtl_poll is not None:
+                    # rtl_fm already exited — capture the error
+                    stderr_out = self._process.stderr.read().decode(errors="replace").strip()
+                    self._last_error = f"rtl_fm exited immediately (code {rtl_poll}): {stderr_out}"
+                    logger.error(f"SDR recording failed to start — {self._last_error}")
+                    self._cleanup_processes()
+                    return False
+
+                sox_poll = self._sox_process.poll()
+                if sox_poll is not None:
+                    stderr_out = self._sox_process.stderr.read().decode(errors="replace").strip()
+                    self._last_error = f"sox exited immediately (code {sox_poll}): {stderr_out}"
+                    logger.error(f"SDR recording failed to start — {self._last_error}")
+                    self._cleanup_processes()
+                    return False
+
                 self._recording = True
+                logger.info("SDR recording processes launched and verified running")
                 return True
-            except (FileNotFoundError, OSError) as e:
-                logger.error(f"Failed to start SDR recording: {e}")
+            except FileNotFoundError as e:
+                self._last_error = f"Binary not found: {e}"
+                logger.error(f"Failed to start SDR recording: {self._last_error}")
+                self._cleanup_processes()
+                return False
+            except OSError as e:
+                self._last_error = f"OS error launching recording: {e}"
+                logger.error(f"Failed to start SDR recording: {self._last_error}")
                 self._cleanup_processes()
                 return False
 
@@ -141,23 +190,76 @@ class SDRController:
             logger.info("SDR recording stopped")
 
     def _cleanup_processes(self) -> None:
-        """Terminate running subprocesses."""
+        """Terminate running subprocesses and close pipes cleanly."""
+        # Step 1: Terminate rtl_fm
         if self._process:
             try:
                 self._process.terminate()
                 self._process.wait(timeout=5)
             except (subprocess.TimeoutExpired, OSError):
                 self._process.kill()
+                try:
+                    self._process.wait(timeout=2)
+                except (subprocess.TimeoutExpired, OSError):
+                    pass
+
+            # Step 2: Close rtl_fm's stdout pipe so sox sees EOF and
+            # can finalize the WAV header before exiting.
+            try:
+                if self._process.stdout and not self._process.stdout.closed:
+                    self._process.stdout.close()
+            except OSError:
+                pass
+
+            # Log any stderr from rtl_fm for debugging
+            try:
+                if self._process.stderr and not self._process.stderr.closed:
+                    err = self._process.stderr.read().decode(errors="replace").strip()
+                    if err:
+                        logger.debug(f"rtl_fm stderr: {err}")
+                    self._process.stderr.close()
+            except OSError:
+                pass
+
             self._process = None
 
+        # Step 3: Give sox a moment to flush + finalize the WAV, then terminate
         if self._sox_process:
             try:
+                # Wait a short period for sox to finish writing after EOF
                 self._sox_process.wait(timeout=10)
-            except (subprocess.TimeoutExpired, OSError):
-                self._sox_process.kill()
+            except subprocess.TimeoutExpired:
+                logger.warning("sox did not exit after rtl_fm EOF — terminating")
+                self._sox_process.terminate()
+                try:
+                    self._sox_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._sox_process.kill()
+                    try:
+                        self._sox_process.wait(timeout=2)
+                    except (subprocess.TimeoutExpired, OSError):
+                        pass
+            except OSError:
+                pass
+
+            # Log any stderr from sox
+            try:
+                if self._sox_process.stderr and not self._sox_process.stderr.closed:
+                    err = self._sox_process.stderr.read().decode(errors="replace").strip()
+                    if err:
+                        logger.debug(f"sox stderr: {err}")
+                    self._sox_process.stderr.close()
+            except OSError:
+                pass
+
             self._sox_process = None
 
     @property
     def is_recording(self) -> bool:
         """Whether the SDR is currently recording."""
         return self._recording
+
+    @property
+    def last_error(self) -> str | None:
+        """Last error message from a failed recording attempt."""
+        return self._last_error

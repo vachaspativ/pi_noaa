@@ -16,6 +16,10 @@ mode:
 sdr:
   device_index: 0
   sample_rate_hz: 2400000
+  ppm_correction: 0
+  gain_mode: "auto"
+  gain_db: 49.6
+  bias_tee: false
 satellites:
   - name: "NOAA 15"
     norad_id: 25338
@@ -34,16 +38,23 @@ tle:
 pass_prediction:
   lookahead_hours: 24
   max_passes_displayed: 10
+  scheduler_interval_minutes: 60
 recording:
   output_dir: "{tmp}/recordings"
   format: "wav"
+  sample_rate_hz: 48000
+  max_recording_minutes: 20
+  keep_raw_recordings: false
 satdump_decoder:
   backend: "satdump"
   output_dir: "{tmp}/images"
   satdump_path: "satdump"
+  image_format: "png"
   keep_products: ["msa", "mcir", "therm", "1", "2"]
 image:
   output_dir: "{tmp}/images"
+  thumbnail_size: [320, 240]
+  colormap: "thermal"
 noaa_weather_radio:
   enabled: true
   frequencies_hz: [162400000]
@@ -56,6 +67,7 @@ nws_api:
   alert_zone: "ILC031"
   poll_interval_seconds: 60
   request_timeout_seconds: 15
+  user_agent: "test/1.0"
 alert_classification:
   critical_events: ["Tornado Warning"]
   high_events: ["Severe Thunderstorm Warning"]
@@ -95,6 +107,16 @@ def setup_config(mock_config_path, monkeypatch):
     monkeypatch.setattr(core.config_loader, "CONFIG_PATH", Path(mock_config_path))
     core.config_loader.get_config.cache_clear()
     
+@pytest.fixture(autouse=True)
+def reset_sdr_singleton():
+    """Reset SDRController singleton between tests to prevent state leaks."""
+    from sdr.sdr_controller import SDRController
+    SDRController._instance = None
+    SDRController._init_done = False
+    yield
+    SDRController._instance = None
+    SDRController._init_done = False
+
 @pytest.fixture
 def clean_db(tmp_path):
     # Ensure fresh DB per test

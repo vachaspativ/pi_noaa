@@ -152,6 +152,15 @@ async def lifespan(app: FastAPI):
                 if utc_now >= aos and utc_now < los:
                     logger.info(f"[Orchestrator] Active satellite pass detected for {next_pass.satellite_name}. Initiating pass workflow.")
                     
+                    # Notify UI that recording is starting
+                    await sio.emit("pass_update", {
+                        "state": "recording",
+                        "satellite_name": next_pass.satellite_name,
+                        "frequency_hz": next_pass.frequency_hz,
+                        "aos": next_pass.aos.isoformat(),
+                        "los": next_pass.los.isoformat(),
+                    })
+                    
                     # Stop Weather Radio if active to free up the SDR device
                     if app_state.wx_receiver and app_state.wx_receiver.is_monitoring:
                         logger.info("[Orchestrator] Stopping WX Radio receiver to release SDR hardware lock.")
@@ -163,6 +172,12 @@ async def lifespan(app: FastAPI):
                     logger.info(f"[Orchestrator] Starting SDR recording for {next_pass.satellite_name}")
                     loop = asyncio.get_running_loop()
                     wav_path = await loop.run_in_executor(None, record_pass, next_pass)
+                    
+                    # Notify UI that recording has finished
+                    await sio.emit("pass_update", {
+                        "state": "decoding" if (wav_path and wav_path.exists()) else "failed",
+                        "satellite_name": next_pass.satellite_name,
+                    })
                     
                     if wav_path and wav_path.exists():
                         logger.info(f"[Orchestrator] Recording finished successfully: {wav_path.name}. Beginning SatDump demodulation.")
@@ -196,8 +211,17 @@ async def lifespan(app: FastAPI):
                             await sio.emit("new_image", image_metadata)
                             logger.info(f"[Orchestrator] Pushed new_image WS update for {img_id}")
                             
+                            await sio.emit("pass_update", {
+                                "state": "complete",
+                                "satellite_name": next_pass.satellite_name,
+                                "image_id": img_id,
+                            })
                         else:
                             logger.error("[Orchestrator] SatDump decoding failed or returned no layers.")
+                            await sio.emit("pass_update", {
+                                "state": "decode_failed",
+                                "satellite_name": next_pass.satellite_name,
+                            })
                     else:
                         logger.error("[Orchestrator] Satellite recording returned empty WAV file or failed.")
                     
@@ -207,11 +231,22 @@ async def lifespan(app: FastAPI):
                         if freq:
                             logger.info(f"[Orchestrator] Restoring WX Radio monitoring on {freq / 1e6:.4f} MHz")
                             app_state.wx_receiver.start_monitoring(freq)
+                    
+                    # Post-recording cooldown: sleep past LOS to avoid
+                    # re-detecting this same pass on the next loop iteration
+                    remaining = (los - datetime.now(timezone.utc)).total_seconds()
+                    if remaining > 0:
+                        logger.debug(f"[Orchestrator] Post-recording cooldown: sleeping {remaining:.0f}s past LOS")
+                        await asyncio.sleep(remaining + 5)
+                    else:
+                        await asyncio.sleep(5)
                             
                 elif utc_now < aos:
-                    # Pass is in the future. Sleep until shortly before AOS, capped at 30 seconds
+                    # Pass is in the future. Sleep until shortly before AOS,
+                    # capped at 30 seconds, and clamped to at least 1 second
+                    # to avoid negative/zero sleeps that spin the event loop.
                     sleep_time = (aos - utc_now).total_seconds()
-                    await asyncio.sleep(min(sleep_time - 5, 30))
+                    await asyncio.sleep(max(1, min(sleep_time - 5, 30)))
                     continue
                 else:
                     # Pass has already ended, sleep a moment before fetching next
